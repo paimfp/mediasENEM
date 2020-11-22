@@ -1,24 +1,15 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[ ]:
-
-
 import pandas as pd
 import numpy as np
+from funcoes_microdados import ler_microdados, ler_escolas_censo
+
 pd.set_option('display.max_columns', 500)
 #pd.set_option('display.max_rows', 500)
 
-# Leitura dos dados:MICRODADOS_ENEM são os microdados do ENEM, ESCOLAS.csv é uma tabela do Censo Escolar do respectivo ano
-ano = '2019'
-escolas = pd.read_csv(f'ESCOLAS_{ano}.csv', usecols = ['CO_ENTIDADE', 'NO_ENTIDADE'],sep = '|', encoding = 'latin').rename(columns = {'CO_ENTIDADE':'CO_ESCOLA', 'NO_ENTIDADE':'NOME'})
-dados = pd.read_csv(f'MICRODADOS_ENEM_{ano}.csv',
-                    sep = ';',
-                    encoding = 'latin',
-                   usecols=['NU_INSCRICAO','TP_ST_CONCLUSAO','TP_ESCOLA','TP_ENSINO','CO_ESCOLA','TP_DEPENDENCIA_ADM_ESC','NO_MUNICIPIO_ESC','SG_UF_ESC',
-                            'NU_NOTA_CN','NU_NOTA_CH','NU_NOTA_LC','NU_NOTA_MT','NU_NOTA_REDACAO', 'NO_MUNICIPIO_ESC', 'SG_UF_ESC'],
-                   dtype={'NU_INSCRICAO':'Int64', 'TP_ST_CONCLUSAO': 'Int8', 'TP_DEPENDENCIA_ADM_ESC':'Int8',
-                          'TP_ENSINO': 'Int8', 'CO_ESCOLA': 'Int32', 'NU_NOTA_REDACAO': 'Int32'})
+# Leitura dos dados: MICRODADOS_ENEM são os microdados do ENEM, ESCOLAS.csv é uma tabela do Censo Escolar do respectivo ano
+ano = 2019
+
+escolas = ler_escolas_censo(ano, f'./dados/{ano}/ESCOLAS_{ano}.csv')
+dados = ler_microdados(ano, f'./dados/{ano}/MICRODADOS_ENEM_{ano}.csv')
 
 # Função que retorna ranking dataframe com filtro de número mínimo de alunos da escola (padrão 10 alunos mínimos)
 def medias_escolas(df, min_alunos = 10):
@@ -45,15 +36,14 @@ def medias_escolas(df, min_alunos = 10):
 # Filtro: Notas objetivas não nulas, possui Cod Escola, concluindo o ensino médio. Adiciona colunas com médias objetiva e com redação
 dados_filtrado = dados[(dados.NU_NOTA_CH > 0) &(dados.NU_NOTA_LC > 0) &(dados.NU_NOTA_MT > 0) &(dados.NU_NOTA_CN > 0) &(dados.CO_ESCOLA > 0) & (dados.TP_ST_CONCLUSAO == 2) & (dados.TP_ENSINO == 1)]
 dados_filtrado = dados_filtrado.assign(OBJETIVA = (dados_filtrado.NU_NOTA_CH + dados_filtrado.NU_NOTA_CN + dados_filtrado.NU_NOTA_LC + dados_filtrado.NU_NOTA_MT)/4)
+dados_filtrado.fillna({'NU_NOTA_REDACAO' : 0}, inplace=True)
 dados_filtrado = dados_filtrado.assign(MEDIA_RD = (dados_filtrado.NU_NOTA_CH + dados_filtrado.NU_NOTA_CN + dados_filtrado.NU_NOTA_LC + dados_filtrado.NU_NOTA_MT + dados_filtrado.NU_NOTA_REDACAO)/5)
 # Adiciona número de participantes da escola do aluno
 dados_filtrado = dados_filtrado.merge(dados_filtrado.groupby('CO_ESCOLA').agg(PARTICIPANTES = ('NU_INSCRICAO', 'count')).reset_index())
-
 df = medias_escolas(dados_filtrado, 0)
 nomeJson = f'mediasEnem_{ano}.json'
 df.to_json(nomeJson, orient='records')
 
 # Salva num banco MongoDB local
-get_ipython().system('mongoimport --db=apiNotasEnem --collection=2019 --type=json --file={nomeJson} --jsonArray --drop')
+#!mongoimport --db=apiNotasEnem --collection=2019 --type=json --file={nomeJson} --jsonArray --drop
 # Criar index na variável `codInep` posteriormente para melhor performace
-

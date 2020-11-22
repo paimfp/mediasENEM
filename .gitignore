@@ -1,0 +1,5 @@
+.ipynb_checkpoints
+dados
+*.json
+__pycache__
+testes.ipynb
